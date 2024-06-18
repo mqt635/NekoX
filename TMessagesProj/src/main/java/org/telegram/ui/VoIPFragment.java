@@ -559,10 +559,9 @@ public class VoIPFragment implements VoIPService.StateListener, NotificationCent
                         canZoomGesture = AndroidUtilities.rectTmp.contains(ev.getX(), ev.getY());
                         if (!canZoomGesture) {
                             finishZoom();
-//                            return maybeSwipeToBackGesture;
                         }
                     }
-                    if (!isInPinchToZoomTouchMode && ev.getPointerCount() == 2) {
+                    if (canZoomGesture && !isInPinchToZoomTouchMode && ev.getPointerCount() == 2) {
                         pinchStartDistance = (float) Math.hypot(ev.getX(1) - ev.getX(0), ev.getY(1) - ev.getY(0));
                         pinchStartCenterX = pinchCenterX = (ev.getX(0) + ev.getX(1)) / 2.0f;
                         pinchStartCenterY = pinchCenterY = (ev.getY(0) + ev.getY(1)) / 2.0f;
@@ -586,29 +585,29 @@ public class VoIPFragment implements VoIPService.StateListener, NotificationCent
                     if (index1 == -1 || index2 == -1) {
                         getParent().requestDisallowInterceptTouchEvent(false);
                         finishZoom();
-//                        return maybeSwipeToBackGesture;
-                    }
-                    pinchScale = (float) Math.hypot(ev.getX(index2) - ev.getX(index1), ev.getY(index2) - ev.getY(index1)) / pinchStartDistance;
-                    if (pinchScale > 1.005f && !zoomStarted) {
-                        pinchStartDistance = (float) Math.hypot(ev.getX(index2) - ev.getX(index1), ev.getY(index2) - ev.getY(index1));
-                        pinchStartCenterX = pinchCenterX = (ev.getX(index1) + ev.getX(index2)) / 2.0f;
-                        pinchStartCenterY = pinchCenterY = (ev.getY(index1) + ev.getY(index2)) / 2.0f;
-                        pinchScale = 1f;
-                        pinchTranslationX = 0f;
-                        pinchTranslationY = 0f;
-                        getParent().requestDisallowInterceptTouchEvent(true);
-                        zoomStarted = true;//
-                        isInPinchToZoomTouchMode = true;
-                    }
+                    } else {
+                        pinchScale = (float) Math.hypot(ev.getX(index2) - ev.getX(index1), ev.getY(index2) - ev.getY(index1)) / pinchStartDistance;
+                        if (pinchScale > 1.005f && !zoomStarted) {
+                            pinchStartDistance = (float) Math.hypot(ev.getX(index2) - ev.getX(index1), ev.getY(index2) - ev.getY(index1));
+                            pinchStartCenterX = pinchCenterX = (ev.getX(index1) + ev.getX(index2)) / 2.0f;
+                            pinchStartCenterY = pinchCenterY = (ev.getY(index1) + ev.getY(index2)) / 2.0f;
+                            pinchScale = 1f;
+                            pinchTranslationX = 0f;
+                            pinchTranslationY = 0f;
+                            getParent().requestDisallowInterceptTouchEvent(true);
+                            zoomStarted = true;
+                            isInPinchToZoomTouchMode = true;
+                        }
 
-                    float newPinchCenterX = (ev.getX(index1) + ev.getX(index2)) / 2.0f;
-                    float newPinchCenterY = (ev.getY(index1) + ev.getY(index2)) / 2.0f;
+                        float newPinchCenterX = (ev.getX(index1) + ev.getX(index2)) / 2.0f;
+                        float newPinchCenterY = (ev.getY(index1) + ev.getY(index2)) / 2.0f;
 
-                    float moveDx = pinchStartCenterX - newPinchCenterX;
-                    float moveDy = pinchStartCenterY - newPinchCenterY;
-                    pinchTranslationX = -moveDx / pinchScale;
-                    pinchTranslationY = -moveDy / pinchScale;
-                    invalidate();
+                        float moveDx = pinchStartCenterX - newPinchCenterX;
+                        float moveDy = pinchStartCenterY - newPinchCenterY;
+                        pinchTranslationX = -moveDx / pinchScale;
+                        pinchTranslationY = -moveDy / pinchScale;
+                        invalidate();
+                    }
                 } else if ((ev.getActionMasked() == MotionEvent.ACTION_UP || (ev.getActionMasked() == MotionEvent.ACTION_POINTER_UP && checkPointerIds(ev)) || ev.getActionMasked() == MotionEvent.ACTION_CANCEL)) {
                     getParent().requestDisallowInterceptTouchEvent(false);
                     finishZoom();
@@ -653,9 +652,9 @@ public class VoIPFragment implements VoIPService.StateListener, NotificationCent
                     return false;
                 }
                 if (
-                    child == callingUserPhotoView ||
-                    child == callingUserTextureView ||
-                    (child == currentUserCameraFloatingLayout && currentUserCameraIsFullscreen)
+                        child == callingUserPhotoView ||
+                                child == callingUserTextureView ||
+                                (child == currentUserCameraFloatingLayout && currentUserCameraIsFullscreen)
                 ) {
                     if (zoomStarted || zoomBackAnimator != null) {
                         canvas.save();
@@ -690,7 +689,7 @@ public class VoIPFragment implements VoIPService.StateListener, NotificationCent
         callingUserTextureView.renderer.setEnableHardwareScaler(true);
         callingUserTextureView.renderer.setRotateTextureWithScreen(true);
         callingUserTextureView.scaleType = VoIPTextureView.SCALE_TYPE_FIT;
-   //     callingUserTextureView.attachBackgroundRenderer();
+        //     callingUserTextureView.attachBackgroundRenderer();
 
         frameLayout.addView(callingUserPhotoView);
         frameLayout.addView(callingUserTextureView);
@@ -849,7 +848,9 @@ public class VoIPFragment implements VoIPService.StateListener, NotificationCent
 
         callingUserTitle = new EmojiTextView(context);
         callingUserTitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 24);
-        callingUserTitle.setText(ContactsController.formatName(callingUser.first_name, callingUser.last_name));
+        CharSequence name = ContactsController.formatName(callingUser.first_name, callingUser.last_name);
+        name = Emoji.replaceEmoji(name, callingUserTitle.getPaint().getFontMetricsInt(), AndroidUtilities.dp(20), false);
+        callingUserTitle.setText(name);
         callingUserTitle.setShadowLayer(AndroidUtilities.dp(3), 0, AndroidUtilities.dp(.666666667f), 0x4C000000);
         callingUserTitle.setTextColor(Color.WHITE);
         callingUserTitle.setGravity(Gravity.CENTER_HORIZONTAL);

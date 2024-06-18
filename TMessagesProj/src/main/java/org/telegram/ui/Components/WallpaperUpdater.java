@@ -21,7 +21,7 @@ import android.provider.MediaStore;
 import androidx.core.content.FileProvider;
 
 import org.telegram.messenger.AndroidUtilities;
-import org.telegram.messenger.BuildConfig;
+import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.ImageLoader;
@@ -30,6 +30,8 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.SendMessagesHelper;
 import org.telegram.messenger.Utilities;
 import org.telegram.ui.ActionBar.BaseFragment;
+import org.telegram.ui.ActionBar.BottomSheet;
+import org.telegram.ui.BasePermissionsActivity;
 import org.telegram.ui.PhotoAlbumPickerActivity;
 
 import java.io.File;
@@ -81,7 +83,7 @@ public class WallpaperUpdater {
                         File image = AndroidUtilities.generatePicturePath();
                         if (image != null) {
                             if (Build.VERSION.SDK_INT >= 24) {
-                                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, FileProvider.getUriForFile(parentActivity, BuildConfig.APPLICATION_ID + ".provider", image));
+                                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, FileProvider.getUriForFile(parentActivity, ApplicationLoader.getApplicationId() + ".provider", image));
                                 takePictureIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
                                 takePictureIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                             } else {
@@ -114,7 +116,7 @@ public class WallpaperUpdater {
         if (parentFragment != null) {
             if (Build.VERSION.SDK_INT >= 23 && parentFragment.getParentActivity() != null) {
                 if (parentFragment.getParentActivity().checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                    parentFragment.getParentActivity().requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, 4);
+                    parentFragment.getParentActivity().requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, BasePermissionsActivity.REQUEST_CODE_EXTERNAL_STORAGE);
                     return;
                 }
             }

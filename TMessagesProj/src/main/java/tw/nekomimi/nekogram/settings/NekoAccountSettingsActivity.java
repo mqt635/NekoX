@@ -128,7 +128,7 @@ public class NekoAccountSettingsActivity extends BaseFragment {
                         if (!editText.getText().toString().equals("YES")) return;
 
                         final AlertDialog progressDialog = new AlertDialog(getParentActivity(), 3);
-                        progressDialog.setCanCacnel(false);
+                        progressDialog.setCanCancel(false);
                         progressDialog.show();
 
                         // delete dialogs
@@ -142,7 +142,7 @@ public class NekoAccountSettingsActivity extends BaseFragment {
                                 TLRPC.Chat chat = getMessagesController().getChat(peer.channel_id);
                                 if (!chat.broadcast) {
                                     if (ChatObject.isChannel(chat) && chat.megagroup && ChatObject.canUserDoAction(chat, ChatObject.ACTION_DELETE_MESSAGES)) {
-                                        getMessagesController().deleteUserChannelHistory(chat, UserConfig.getInstance(currentAccount).getCurrentUser(), 0);
+                                        getMessagesController().deleteUserChannelHistory(chat, UserConfig.getInstance(currentAccount).getCurrentUser(), null, 0);
                                     } else {
                                         MessageHelper.getInstance(currentAccount).deleteUserChannelHistoryWithSearch(null, TLdialog.id, getMessagesController().getUser(getUserConfig().clientUserId));
                                     }
@@ -181,7 +181,7 @@ public class NekoAccountSettingsActivity extends BaseFragment {
                     showDialog(dialog12);
                     TextView button = (TextView) dialog12.getButton(DialogInterface.BUTTON_POSITIVE);
                     if (button != null) {
-                        button.setTextColor(Theme.getColor(Theme.key_dialogTextRed2));
+                        button.setTextColor(Theme.getColor(Theme.key_dialogTextRed));
                     }
                 });
                 builder.setNegativeButton(LocaleController.getString("Cancel", R.string.Cancel), null);
@@ -190,7 +190,7 @@ public class NekoAccountSettingsActivity extends BaseFragment {
                 showDialog(dialog);
                 TextView button = (TextView) dialog.getButton(DialogInterface.BUTTON_POSITIVE);
                 if (button != null) {
-                    button.setTextColor(Theme.getColor(Theme.key_dialogTextRed2));
+                    button.setTextColor(Theme.getColor(Theme.key_dialogTextRed));
                 }
             }
         });

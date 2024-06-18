@@ -37,7 +37,6 @@ import android.os.SystemClock;
 import android.provider.Settings;
 import android.text.Editable;
 import android.text.InputType;
-import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -214,7 +213,7 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
     }
 
     @Override
-    protected void onTransitionAnimationProgress(boolean isOpen, float progress) {
+    public void onTransitionAnimationProgress(boolean isOpen, float progress) {
         super.onTransitionAnimationProgress(isOpen, progress);
         if (fragmentView != null) {
             fragmentView.invalidate();
@@ -251,7 +250,7 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
                     SharedConfig.toggleSortContactsByName();
                     sortByName = SharedConfig.sortContactsByName;
                     listViewAdapter.setSortType(sortByName ? 1 : 2, false);
-                    sortItem.setIcon(sortByName ? R.drawable.contacts_sort_time : R.drawable.contacts_sort_name);
+                    sortItem.setIcon(sortByName ? R.drawable.msg_contacts_time : R.drawable.msg_contacts_name);
                 }
             }
         });
@@ -275,7 +274,7 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
                 searching = false;
                 searchWas = false;
                 listView.setAdapter(listViewAdapter);
-                listView.setSectionsType(1);
+                listView.setSectionsType(RecyclerListView.SECTIONS_TYPE_STICKY_HEADERS);
                 listViewAdapter.notifyDataSetChanged();
                 listView.setFastScrollVisible(true);
                 listView.setVerticalScrollBarEnabled(false);
@@ -301,7 +300,7 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
                     searchWas = true;
                     if (listView != null) {
                         listView.setAdapter(searchListViewAdapter);
-                        listView.setSectionsType(0);
+                        listView.setSectionsType(RecyclerListView.SECTIONS_TYPE_SIMPLE);
                         searchListViewAdapter.notifyDataSetChanged();
                         listView.setFastScrollVisible(false);
                         listView.setVerticalScrollBarEnabled(true);
@@ -311,7 +310,7 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
                 } else {
                     if (listView != null) {
                         listView.setAdapter(listViewAdapter);
-                        listView.setSectionsType(1);
+                        listView.setSectionsType(RecyclerListView.SECTIONS_TYPE_STICKY_HEADERS);
                     }
                 }
             }
@@ -319,7 +318,7 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
         item.setSearchFieldHint(LocaleController.getString("Search", R.string.Search));
         item.setContentDescription(LocaleController.getString("Search", R.string.Search));
         if (!createSecretChat && !returnAsResult) {
-            sortItem = menu.addItem(sort_button, sortByName ? R.drawable.contacts_sort_time : R.drawable.contacts_sort_name);
+            sortItem = menu.addItem(sort_button, sortByName ? R.drawable.msg_contacts_time : R.drawable.msg_contacts_name);
             sortItem.setContentDescription(LocaleController.getString("AccDescrContactSorting", R.string.AccDescrContactSorting));
         }
 
@@ -338,7 +337,7 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
             inviteViaLink = ChatObject.canUserDoAdminAction(chat, ChatObject.ACTION_INVITE) ? 1 : 0;
         } else if (channelId != 0) {
             TLRPC.Chat chat = getMessagesController().getChat(channelId);
-            inviteViaLink = ChatObject.canUserDoAdminAction(chat, ChatObject.ACTION_INVITE) && TextUtils.isEmpty(chat.username) ? 2 : 0;
+            inviteViaLink = ChatObject.canUserDoAdminAction(chat, ChatObject.ACTION_INVITE) && !ChatObject.isPublic(chat) ? 2 : 0;
         } else {
             inviteViaLink = 0;
         }
@@ -402,7 +401,7 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
                 }
             }
         };
-        listView.setSectionsType(1);
+        listView.setSectionsType(RecyclerListView.SECTIONS_TYPE_STICKY_HEADERS);
         listView.setVerticalScrollBarEnabled(false);
         listView.setFastScrollEnabled(RecyclerListView.FastScroll.LETTER_TYPE);
         listView.setLayoutManager(layoutManager = new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
@@ -410,7 +409,7 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
         frameLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         listView.setEmptyView(emptyView);
-        listView.setAnimateEmptyView(true, 0);
+        listView.setAnimateEmptyView(true, RecyclerListView.EMPTY_VIEW_ANIMATION_TYPE_ALPHA);
 
         listView.setOnItemClickListener((view, position) -> {
             if (listView.getAdapter() == searchListViewAdapter) {
@@ -446,10 +445,13 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
                 } else if (object instanceof String) {
                     String str = (String) object;
                     if (!str.equals("section")) {
-                        NewContactActivity activity = new NewContactActivity();
+                        NewContactBottomSheet activity = new NewContactBottomSheet(ContactsActivity.this, getContext());
                         activity.setInitialPhoneNumber(str, true);
-                        presentFragment(activity);
+                        activity.show();
                     }
+                } else if (object instanceof ContactsController.Contact) {
+                    ContactsController.Contact contact = (ContactsController.Contact) object;
+                    AlertsCreator.createContactInviteDialog(ContactsActivity.this, contact.first_name, contact.last_name, contact.phones.get(0));
                 }
             } else {
                 int section = listViewAdapter.getSectionForPosition(position);
@@ -617,7 +619,16 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
         if (!createSecretChat && !returnAsResult) {
             floatingButtonContainer = new FrameLayout(context);
             frameLayout.addView(floatingButtonContainer, LayoutHelper.createFrame((Build.VERSION.SDK_INT >= 21 ? 56 : 60) + 20, (Build.VERSION.SDK_INT >= 21 ? 56 : 60) + 20, (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.BOTTOM, LocaleController.isRTL ? 4 : 0, 0, LocaleController.isRTL ? 0 : 4, 0));
-            floatingButtonContainer.setOnClickListener(v -> presentFragment(new NewContactActivity()));
+            floatingButtonContainer.setOnClickListener(v -> {
+                AndroidUtilities.requestAdjustNothing(getParentActivity(), getClassGuid());
+                new NewContactBottomSheet(ContactsActivity.this, getContext()) {
+                    @Override
+                    public void dismissInternal() {
+                        super.dismissInternal();
+                        AndroidUtilities.requestAdjustResize(getParentActivity(), classGuid);
+                    }
+                }.show();
+            });
 
             floatingButton = new RLottieImageView(context);
             floatingButton.setScaleType(ImageView.ScaleType.CENTER);
@@ -677,9 +688,9 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
                     TLRPC.Chat chat = getMessagesController().getChat(channelId);
                     AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
                     if (ChatObject.canAddAdmins(chat)) {
-                        builder.setTitle(LocaleController.getString("AppName", R.string.AppName));
+                        builder.setTitle(LocaleController.getString("AddBotAdminAlert", R.string.AddBotAdminAlert));
                         builder.setMessage(LocaleController.getString("AddBotAsAdmin", R.string.AddBotAsAdmin));
-                        builder.setPositiveButton(LocaleController.getString("MakeAdmin", R.string.MakeAdmin), (dialogInterface, i) -> {
+                        builder.setPositiveButton(LocaleController.getString("AddAsAdmin", R.string.AddAsAdmin), (dialogInterface, i) -> {
                             if (delegate != null) {
                                 delegate.didSelectContact(user, param, this);
                                 delegate = null;
@@ -927,7 +938,7 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
             }
         } else if (id == NotificationCenter.closeChats) {
             if (!creatingChat) {
-                removeSelfFromStack();
+                removeSelfFromStack(true);
             }
         }
     }
@@ -998,10 +1009,10 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
     }
 
     @Override
-    protected AnimatorSet onCustomTransitionAnimation(boolean isOpen, Runnable callback) {
+    public AnimatorSet onCustomTransitionAnimation(boolean isOpen, Runnable callback) {
         ValueAnimator valueAnimator = isOpen ? ValueAnimator.ofFloat(1f, 0) : ValueAnimator.ofFloat(0, 1f);
         ViewGroup parent = (ViewGroup) fragmentView.getParent();
-        BaseFragment previousFragment = parentLayout.fragmentsStack.size() > 1 ? parentLayout.fragmentsStack.get(parentLayout.fragmentsStack.size() - 2) : null;
+        BaseFragment previousFragment = parentLayout.getFragmentStack().size() > 1 ? parentLayout.getFragmentStack().get(parentLayout.getFragmentStack().size() - 2) : null;
         DialogsActivity dialogsActivity = null;
         if (previousFragment instanceof DialogsActivity) {
             dialogsActivity = (DialogsActivity) previousFragment;
@@ -1010,14 +1021,13 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
             return null;
         }
         RLottieImageView previousFab = dialogsActivity.getFloatingButton();
-        View previousFabContainer = null;
-        if (previousFab.getParent() != null) {
-            previousFabContainer = (View) previousFab.getParent();
-        }
+        View previousFabContainer = previousFab.getParent() != null ? (View) previousFab.getParent() : null;
         if (floatingButtonContainer == null || previousFabContainer == null || previousFab.getVisibility() != View.VISIBLE || Math.abs(previousFabContainer.getTranslationY()) > AndroidUtilities.dp(4) || Math.abs(floatingButtonContainer.getTranslationY()) > AndroidUtilities.dp(4)) {
+            floatingButton.setAnimation(R.raw.write_contacts_fab_icon, 52, 52);
+            floatingButton.getAnimatedDrawable().setCurrentFrame(floatingButton.getAnimatedDrawable().getFramesCount() - 1);
             return null;
         }
-        previousFab.setVisibility(View.GONE);
+        previousFabContainer.setVisibility(View.GONE);
         if (isOpen) {
             parent.setAlpha(0f);
         }
@@ -1028,12 +1038,10 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
         });
         if (floatingButtonContainer != null) {
             ((ViewGroup) fragmentView).removeView(floatingButtonContainer);
-            ((FrameLayout) parent.getParent()).addView(floatingButtonContainer);
+            parentLayout.getOverlayContainerView().addView(floatingButtonContainer);
         }
         valueAnimator.setDuration(150);
         valueAnimator.setInterpolator(new DecelerateInterpolator(1.5f));
-
-        final int currentAccount = this.currentAccount;
 
         AnimatorSet animatorSet = new AnimatorSet();
         animatorSet.addListener(new AnimatorListenerAdapter() {
@@ -1047,7 +1055,7 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
                     }
                     ((ViewGroup) fragmentView).addView(floatingButtonContainer);
 
-                    previousFab.setVisibility(View.VISIBLE);
+                    previousFabContainer.setVisibility(View.VISIBLE);
                     if (!isOpen) {
                         previousFab.setAnimation(R.raw.write_contacts_fab_icon_reverse, 52, 52);
                         previousFab.getAnimatedDrawable().setCurrentFrame(floatingButton.getAnimatedDrawable().getCurrentFrame());
@@ -1059,7 +1067,7 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
         });
         animatorSet.playTogether(valueAnimator);
         AndroidUtilities.runOnUIThread(() -> {
-            animationIndex = getNotificationCenter().setAnimationInProgress(animationIndex, null);
+            animationIndex = getNotificationCenter().setAnimationInProgress(animationIndex, new int[] {NotificationCenter.diceStickersDidLoad}, false);
             animatorSet.start();
             if (isOpen) {
                 floatingButton.setAnimation(R.raw.write_contacts_fab_icon, 52, 52);
@@ -1081,8 +1089,8 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
                         set.playTogether(
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_X, 1f, 0.9f),
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_Y, 1f, 0.9f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_X, 1f, 0.9f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_Y, 1f, 0.9f)
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_X, 1f, 0.9f),
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_Y, 1f, 0.9f)
                         );
                         set.setDuration((long) (6f / 47f * totalDuration));
                         set.setInterpolator(CubicBezierInterpolator.EASE_OUT);
@@ -1090,8 +1098,8 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
                         set.playTogether(
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_X, 0.9f, 1.06f),
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_Y, 0.9f, 1.06f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_X, 0.9f, 1.06f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_Y, 0.9f, 1.06f)
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_X, 0.9f, 1.06f),
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_Y, 0.9f, 1.06f)
                         );
                         set.setDuration((long) (17f / 47f * totalDuration));
                         set.setInterpolator(CubicBezierInterpolator.EASE_BOTH);
@@ -1099,8 +1107,8 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
                         set.playTogether(
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_X, 1.06f, 0.9f),
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_Y, 1.06f, 0.9f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_X, 1.06f, 0.9f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_Y, 1.06f, 0.9f)
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_X, 1.06f, 0.9f),
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_Y, 1.06f, 0.9f)
                         );
                         set.setDuration((long) (10f / 47f * totalDuration));
                         set.setInterpolator(CubicBezierInterpolator.EASE_BOTH);
@@ -1108,8 +1116,8 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
                         set.playTogether(
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_X, 0.9f, 1.03f),
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_Y, 0.9f, 1.03f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_X, 0.9f, 1.03f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_Y, 0.9f, 1.03f)
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_X, 0.9f, 1.03f),
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_Y, 0.9f, 1.03f)
                         );
                         set.setDuration((long) (5f / 47f * totalDuration));
                         set.setInterpolator(CubicBezierInterpolator.EASE_BOTH);
@@ -1117,8 +1125,8 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
                         set.playTogether(
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_X, 1.03f, 0.98f),
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_Y, 1.03f, 0.98f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_X, 1.03f, 0.98f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_Y, 1.03f, 0.98f)
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_X, 1.03f, 0.98f),
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_Y, 1.03f, 0.98f)
                         );
                         set.setDuration((long) (5f / 47f * totalDuration));
                         set.setInterpolator(CubicBezierInterpolator.EASE_BOTH);
@@ -1126,8 +1134,8 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
                         set.playTogether(
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_X, 0.98f, 1f),
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_Y, 0.98f, 1f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_X, 0.98f, 1f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_Y, 0.98f, 1f)
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_X, 0.98f, 1f),
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_Y, 0.98f, 1f)
                         );
 
                         set.setDuration((long) (4f / 47f * totalDuration));
@@ -1144,8 +1152,8 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
                         set.playTogether(
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_X, 1f, 0.9f),
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_Y, 1f, 0.9f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_X, 1f, 0.9f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_Y, 1f, 0.9f)
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_X, 1f, 0.9f),
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_Y, 1f, 0.9f)
                         );
                         set.setDuration((long) (7f / 36f * totalDuration));
                         set.setInterpolator(CubicBezierInterpolator.EASE_OUT);
@@ -1153,8 +1161,8 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
                         set.playTogether(
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_X, 0.9f, 1.06f),
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_Y, 0.9f, 1.06f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_X, 0.9f, 1.06f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_Y, 0.9f, 1.06f)
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_X, 0.9f, 1.06f),
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_Y, 0.9f, 1.06f)
                         );
                         set.setDuration((long) (8f / 36f * totalDuration));
                         set.setInterpolator(CubicBezierInterpolator.EASE_BOTH);
@@ -1162,8 +1170,8 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
                         set.playTogether(
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_X, 1.06f, 0.92f),
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_Y, 1.06f, 0.92f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_X, 1.06f, 0.92f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_Y, 1.06f, 0.92f)
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_X, 1.06f, 0.92f),
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_Y, 1.06f, 0.92f)
                         );
                         set.setDuration((long) (7f / 36f * totalDuration));
                         set.setInterpolator(CubicBezierInterpolator.EASE_BOTH);
@@ -1171,8 +1179,8 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
                         set.playTogether(
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_X, 0.92f, 1.02f),
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_Y, 0.92f, 1.02f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_X, 0.92f, 1.02f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_Y, 0.92f, 1.02f)
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_X, 0.92f, 1.02f),
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_Y, 0.92f, 1.02f)
                         );
                         set.setDuration((long) (9f / 36f * totalDuration));
                         set.setInterpolator(CubicBezierInterpolator.EASE_BOTH);
@@ -1180,8 +1188,8 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
                         set.playTogether(
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_X, 1.02f, 1f),
                                 ObjectAnimator.ofFloat(floatingButton, View.SCALE_Y, 1.02f, 1f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_X, 1.02f, 1f),
-                                ObjectAnimator.ofFloat(previousFab, View.SCALE_Y, 1.02f, 1f)
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_X, 1.02f, 1f),
+                                ObjectAnimator.ofFloat(previousFabContainer, View.SCALE_Y, 1.02f, 1f)
                         );
                         set.setDuration((long) (5f / 47f * totalDuration));
                         set.setInterpolator(CubicBezierInterpolator.EASE_IN);
@@ -1196,8 +1204,8 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
                 public void onAnimationEnd(Animator animation) {
                     floatingButton.setScaleX(1f);
                     floatingButton.setScaleY(1f);
-                    previousFab.setScaleX(1f);
-                    previousFab.setScaleY(1f);
+                    previousFabContainer.setScaleX(1f);
+                    previousFabContainer.setScaleY(1f);
                     bounceIconAnimator = null;
                     getNotificationCenter().onAnimationFinish(animationIndex);
                 }
@@ -1268,7 +1276,6 @@ public class ContactsActivity extends BaseFragment implements NotificationCenter
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{GraySectionCell.class}, new String[]{"textView"}, null, null, null, Theme.key_graySectionText));
         themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_CELLBACKGROUNDCOLOR, new Class[]{GraySectionCell.class}, null, null, null, Theme.key_graySection));
 
-        themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{ProfileSearchCell.class}, null, new Drawable[]{Theme.dialogs_groupDrawable, Theme.dialogs_broadcastDrawable, Theme.dialogs_botDrawable}, null, Theme.key_chats_nameIcon));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{ProfileSearchCell.class}, null, new Drawable[]{Theme.dialogs_verifiedCheckDrawable}, null, Theme.key_chats_verifiedCheck));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{ProfileSearchCell.class}, null, new Drawable[]{Theme.dialogs_verifiedDrawable}, null, Theme.key_chats_verifiedBackground));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{ProfileSearchCell.class}, Theme.dialogs_offlinePaint, null, null, Theme.key_windowBackgroundWhiteGrayText3));

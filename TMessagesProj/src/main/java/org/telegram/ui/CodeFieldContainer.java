@@ -18,15 +18,16 @@ import androidx.core.graphics.ColorUtils;
 import org.telegram.PhoneFormat.PhoneFormat;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.ui.ActionBar.Theme;
-import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.LayoutHelper;
 
 public class CodeFieldContainer extends LinearLayout {
+    public final static int TYPE_PASSCODE = 10;
 
     Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     Paint bitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     float strokeWidth;
     public boolean ignoreOnTextChange;
+    public boolean isFocusSuppressed;
 
     public CodeNumberField[] codeField;
 
@@ -48,24 +49,24 @@ public class CodeFieldContainer extends LinearLayout {
             View child = getChildAt(i);
             if (child instanceof CodeNumberField) {
                 CodeNumberField codeField = (CodeNumberField) child;
-                if (child.isFocused() && codeField.focusedProgress != 1f) {
-                    codeField.focusedProgress += 16f / 150f;
-                    if (codeField.focusedProgress > 1f) {
-                        codeField.focusedProgress = 1f;
-                    } else {
-                        invalidate();
-                    }
-                } else if (!child.isFocused() && codeField.focusedProgress != 0) {
-                    codeField.focusedProgress -= 16f / 150f;
-                    if (codeField.focusedProgress < 0f) {
-                        codeField.focusedProgress = 0f;
-                    } else {
-                        invalidate();
+                if (!isFocusSuppressed) {
+                    if (child.isFocused()) {
+                        codeField.animateFocusedProgress(1f);
+                    } else if (!child.isFocused()) {
+                        codeField.animateFocusedProgress(0);
                     }
                 }
-                paint.setColor(ColorUtils.blendARGB(Theme.getColor(Theme.key_windowBackgroundWhiteInputField), Theme.getColor(Theme.key_windowBackgroundWhiteInputFieldActivated), codeField.focusedProgress));
+                float successProgress = codeField.getSuccessProgress();
+                int focusClr = ColorUtils.blendARGB(Theme.getColor(Theme.key_windowBackgroundWhiteInputField), Theme.getColor(Theme.key_windowBackgroundWhiteInputFieldActivated), codeField.getFocusedProgress());
+                int errorClr = ColorUtils.blendARGB(focusClr, Theme.getColor(Theme.key_dialogTextRed), codeField.getErrorProgress());
+                paint.setColor(ColorUtils.blendARGB(errorClr, Theme.getColor(Theme.key_checkbox), successProgress));
                 AndroidUtilities.rectTmp.set(child.getLeft(), child.getTop(), child.getRight(), child.getBottom());
                 AndroidUtilities.rectTmp.inset(strokeWidth, strokeWidth);
+                if (successProgress != 0) {
+                    float offset = -Math.max(0, strokeWidth * (codeField.getSuccessScaleProgress() - 1f));
+                    AndroidUtilities.rectTmp.inset(offset, offset);
+                }
+
                 canvas.drawRoundRect(AndroidUtilities.rectTmp, AndroidUtilities.dp(4), AndroidUtilities.dp(4), paint);
             }
         }
@@ -108,6 +109,11 @@ public class CodeFieldContainer extends LinearLayout {
 
     public void setNumbersCount(int length, int currentType) {
         if (codeField == null || codeField.length != length) {
+            if (codeField != null) {
+                for (CodeNumberField f : codeField) {
+                    removeView(f);
+                }
+            }
             codeField = new CodeNumberField[length];
             for (int a = 0; a < length; a++) {
                 final int num = a;
@@ -118,6 +124,9 @@ public class CodeFieldContainer extends LinearLayout {
                             return false;
                         }
                         int keyCode = event.getKeyCode();
+                        if (num >= codeField.length) {
+                            return false;
+                        }
                         if (event.getAction() == KeyEvent.ACTION_UP) {
                             if (keyCode == KeyEvent.KEYCODE_DEL && codeField[num].length() == 1) {
                                 codeField[num].startExitAnimation();
@@ -175,7 +184,11 @@ public class CodeFieldContainer extends LinearLayout {
                 int width;
                 int height;
                 int gapSize;
-                if (currentType == LoginActivity.AUTH_TYPE_MISSED_CALL) {
+                if (currentType == TYPE_PASSCODE) {
+                    width = 42;
+                    height = 47;
+                    gapSize = 10;
+                } else if (currentType == LoginActivity.AUTH_TYPE_MISSED_CALL) {
                     width = 28;
                     height = 34;
                     gapSize = 5;
@@ -188,14 +201,10 @@ public class CodeFieldContainer extends LinearLayout {
                 codeField[a].addTextChangedListener(new TextWatcher() {
 
                     @Override
-                    public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-
-                    }
+                    public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
 
                     @Override
-                    public void onTextChanged(CharSequence s, int start, int before, int count) {
-
-                    }
+                    public void onTextChanged(CharSequence s, int start, int before, int count) {}
 
                     @Override
                     public void afterTextChanged(Editable s) {
@@ -214,14 +223,16 @@ public class CodeFieldContainer extends LinearLayout {
                                         s.replace(0, len, text.substring(a, a + 1));
                                     } else {
                                         n++;
-                                        codeField[num + a].setText(text.substring(a, a + 1));
+                                        if (num + a < codeField.length) {
+                                            codeField[num + a].setText(text.substring(a, a + 1));
+                                        }
                                     }
                                 }
                                 ignoreOnTextChange = false;
                             }
 
 
-                            if (n != length - 1) {
+                            if (n + 1 >= 0 && n + 1 < codeField.length) {
                                 codeField[n + 1].setSelection(codeField[n + 1].length());
                                 codeField[n + 1].requestFocus();
                             }
@@ -270,6 +281,9 @@ public class CodeFieldContainer extends LinearLayout {
     }
 
     public void setText(String code, boolean fromPaste) {
+        if (codeField == null) {
+            return;
+        }
         int startFrom = 0;
         if (fromPaste) {
             for (int i = 0; i < codeField.length; i++) {

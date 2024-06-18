@@ -2,7 +2,6 @@ package org.telegram.ui.Components.Paint.Views;
 
 import android.content.Context;
 import android.graphics.Canvas;
-import android.graphics.Paint;
 import android.graphics.RectF;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
@@ -12,6 +11,7 @@ import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.ImageReceiver;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.Components.AnimatedFileDrawable;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.Point;
 import org.telegram.ui.Components.RLottieDrawable;
@@ -119,8 +119,8 @@ public class StickerView extends EntityView {
     protected void updatePosition() {
         float halfWidth = baseSize.width / 2.0f;
         float halfHeight = baseSize.height / 2.0f;
-        setX(position.x - halfWidth);
-        setY(position.y - halfHeight);
+        setX(getPositionX() - halfWidth);
+        setY(getPositionY() - halfHeight);
         updateSelectionView();
     }
 
@@ -144,11 +144,16 @@ public class StickerView extends EntityView {
     }
 
     public long getDuration() {
-        RLottieDrawable drawable = centerImage.getLottieAnimation();
-        if (drawable == null) {
-            return 0;
+        RLottieDrawable rLottieDrawable = centerImage.getLottieAnimation();
+        if (rLottieDrawable != null) {
+            return rLottieDrawable.getDuration();
         }
-        return drawable.getDuration();
+        AnimatedFileDrawable animatedFileDrawable = centerImage.getAnimation();
+        if (animatedFileDrawable != null) {
+            return animatedFileDrawable.getDurationMs();
+        }
+        return 0;
+
     }
 
     @Override
@@ -159,10 +164,13 @@ public class StickerView extends EntityView {
     @Override
     protected Rect getSelectionBounds() {
         ViewGroup parentView = (ViewGroup) getParent();
+        if (parentView == null) {
+            return new Rect();
+        }
         float scale = parentView.getScaleX();
 
-        float side = getMeasuredWidth() * (getScale() + 0.4f);
-        return new Rect((position.x - side / 2.0f) * scale, (position.y - side / 2.0f) * scale, side * scale, side * scale);
+        float side = getMeasuredWidth() * (getScale() + 0.5f);
+        return new Rect((getPositionX() - side / 2.0f) * scale, (getPositionY() - side / 2.0f) * scale, side * scale, side * scale);
     }
 
     @Override
@@ -184,15 +192,10 @@ public class StickerView extends EntityView {
 
     public class StickerViewSelectionView extends SelectionView {
 
-        private Paint arcPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private RectF arcRect = new RectF();
 
         public StickerViewSelectionView(Context context) {
             super(context);
-
-            arcPaint.setColor(0xffffffff);
-            arcPaint.setStrokeWidth(AndroidUtilities.dp(1));
-            arcPaint.setStyle(Paint.Style.STROKE);
         }
 
         @Override
@@ -228,13 +231,9 @@ public class StickerView extends EntityView {
             float inset = radius + thickness + AndroidUtilities.dp(15);
             float mainRadius = getMeasuredWidth() / 2 - inset;
 
-            float space = 4.0f;
-            float length = 4.0f;
-
             arcRect.set(inset, inset, inset + mainRadius * 2, inset + mainRadius * 2);
-            for (int i = 0; i < 48; i++) {
-                canvas.drawArc(arcRect, i * (space + length), length, false, arcPaint);
-            }
+            canvas.drawArc(arcRect, 0, 180, false, paint);
+            canvas.drawArc(arcRect, 180, 180, false, paint);
 
             canvas.drawCircle(inset, inset + mainRadius, radius, dotPaint);
             canvas.drawCircle(inset, inset + mainRadius, radius, dotStrokePaint);

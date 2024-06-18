@@ -31,8 +31,6 @@ import androidx.annotation.RestrictTo;
 import androidx.core.os.TraceCompat;
 import androidx.core.view.ViewCompat;
 
-import org.telegram.messenger.BuildVars;
-
 import java.util.List;
 
 import static androidx.annotation.RestrictTo.Scope.LIBRARY_GROUP_PREFIX;
@@ -96,6 +94,11 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
     private boolean mReverseLayout = false;
 
     /**
+     * Defines if scroll should be disabled
+     */
+    private boolean mDisableScroll = false;
+
+    /**
      * This keeps the final value for how LayoutManager should start laying out views.
      * It is calculated by checking {@link #getReverseLayout()} and View's layout direction.
      * {@link #onLayoutChildren(RecyclerView.Recycler, RecyclerView.State)} is run.
@@ -155,6 +158,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
     private int[] mReusableIntPair = new int[2];
 
     private boolean needFixGap = true;
+    private boolean needFixEndGap = true;
 
     /**
      * Creates a vertical LinearLayoutManager
@@ -282,7 +286,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
      */
     @Override
     public boolean canScrollHorizontally() {
-        return mOrientation == HORIZONTAL;
+        return !mDisableScroll && mOrientation == HORIZONTAL;
     }
 
     /**
@@ -290,7 +294,14 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
      */
     @Override
     public boolean canScrollVertically() {
-        return mOrientation == VERTICAL;
+        return !mDisableScroll && mOrientation == VERTICAL;
+    }
+
+    /**
+     * Sets scroll disabled flag
+     */
+    public void setScrollDisabled(boolean disableScroll) {
+        this.mDisableScroll = disableScroll;
     }
 
     /**
@@ -791,6 +802,10 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
         mLayoutState.mScrapList = null;
     }
 
+    protected int firstPosition() {
+        return 0;
+    }
+
     private void updateAnchorInfoForLayout(RecyclerView.Recycler recycler, RecyclerView.State state,
             AnchorInfo anchorInfo) {
         if (updateAnchorFromPendingData(state, anchorInfo)) {
@@ -810,7 +825,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
             Log.d(TAG, "deciding anchor info for fresh state");
         }
         anchorInfo.assignCoordinateFromPadding();
-        anchorInfo.mPosition = mStackFromEnd ? state.getItemCount() - 1 : 0;
+        anchorInfo.mPosition = mStackFromEnd ? state.getItemCount() - 1 : firstPosition();
     }
 
     /**
@@ -948,7 +963,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
      */
     private int fixLayoutEndGap(int endOffset, RecyclerView.Recycler recycler,
             RecyclerView.State state, boolean canOffsetChildren) {
-        if (!needFixGap) {
+        if (!needFixGap || !needFixEndGap) {
             return 0;
         }
         int gap = mOrientationHelper.getEndAfterPadding() - endOffset;
@@ -971,7 +986,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
         return fixOffset;
     }
 
-    public int getStarForFixGap() {
+    public int getStartForFixGap() {
         return mOrientationHelper.getStartAfterPadding();
     }
 
@@ -983,7 +998,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
         if (!needFixGap) {
             return 0;
         }
-        int gap = startOffset - getStarForFixGap();
+        int gap = startOffset - getStartForFixGap();
         int fixOffset = 0;
         if (gap > 0) {
             // check if we should fix this gap.
@@ -2214,6 +2229,10 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
         }
     }
 
+    public boolean hasPendingScrollPosition() {
+        return mPendingScrollPosition >= 0;
+    }
+
     /**
      * Helper class that keeps temporary state while {LayoutManager} is filling out the empty
      * space.
@@ -2590,5 +2609,9 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
 
     public void setNeedFixGap(boolean needFixGap) {
         this.needFixGap = needFixGap;
+    }
+
+    public void setNeedFixEndGap(boolean needFixEndGap) {
+        this.needFixEndGap = needFixEndGap;
     }
 }

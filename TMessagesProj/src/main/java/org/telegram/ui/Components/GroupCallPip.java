@@ -35,6 +35,7 @@ import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.voip.VoIPService;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.Components.voip.RTMPStreamPipOverlay;
 import org.telegram.ui.GroupCallActivity;
 
 import tw.nekomimi.nekogram.NekoConfig;
@@ -448,6 +449,9 @@ public class GroupCallPip implements NotificationCenter.NotificationCenterDelega
     }
 
     public static boolean isShowing() {
+        if (RTMPStreamPipOverlay.isVisible()) {
+            return true;
+        }
         if (instance != null) {
             return true;
         }
@@ -676,7 +680,7 @@ public class GroupCallPip implements NotificationCenter.NotificationCenterDelega
     }
 
     private void updateAvatars(boolean animated) {
-        if (avatarsImageView.avatarsDarawable.transitionProgressAnimator == null) {
+        if (avatarsImageView.avatarsDrawable.transitionProgressAnimator == null) {
             ChatObject.Call call;
 
             VoIPService voIPService = VoIPService.getSharedInstance();
